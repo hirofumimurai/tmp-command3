@@ -1,0 +1,84 @@
+#!/bin/bash -eux
+
+
+# SPDX-FileCopyrightText: 2024 hirofumi Murai <murai_h22aa@icloud.com>
+# SPDX-License-Identify: MIT
+
+#DATE=$(date +"%Y%m%d_%H%M")
+
+DIR1=$(echo $0 | rev | sed "s;/; /;" | awk '{print $2}' | rev )
+DIR2=$(echo $0 | sed "s;.*/;;" | sed "s;\..*;;" | sed "s;$;/;" | sed "s;^;_;")
+
+OPTION_h="FALSE"
+
+while getopts ":h" OPTION
+do
+case $OPTION in
+h) OPTION_h="TRUE" ;;
+esac
+done
+
+
+if [ "$OPTION_h" = "TRUE" ]; then
+
+        cat "${DIR1}${DIR2}"help 
+
+else
+
+
+pypdfpagein(){
+
+tmp="/tmp/$$"
+trap 'rm -r $tmp-*' EXIT
+
+
+
+## pdf burst
+cat -n list | awk '{print 10000+$1,$2}' | awk '{print "'$tmp-'burst_"$1"_"$2,$2}' | 
+	while read f g ;do
+		mkdir -p $f
+		qpdf --split-pages=1 $g $f/$g
+	done
+
+## MAKE burst pdf-files list
+find  /tmp/  -type f 2>/dev/null | grep ^$tmp-burst | grep pdf >  $tmp-2
+
+
+total=$(cat $tmp-2 |wc -l)
+
+
+## MAKE burst pdf-files meta-data list
+cat -n $tmp-2 | while read f g ; do
+pdfinfo $g | grep -i page.*size | awk '{print "'$g'",$3,$5,"'$f'","'$total'"}' >> $tmp-3 
+done
+
+
+
+
+cat $tmp-3 | xargs -I@ bash -c 'python3 "'${DIR1}${DIR2}'"tmp.py @'
+
+
+## MAKE  overlay
+
+cat $tmp-2 |  xargs -I@ bash -c 'qpdf --overlay @_stamp_page-only.pdf --to=1-1 --from=1-1 -- @  @_stamped_only-page.pdf'
+cat $tmp-2 |  xargs -I@ bash -c 'qpdf --overlay @_stamp_pages.pdf --to=1-1 --from=1-1 -- @  @_stamped_pages.pdf'
+cat $tmp-2 |  xargs -I@ bash -c 'qpdf --overlay @_stamp_all.pdf --to=1-1 --from=1-1 -- @  @_stamped_all.pdf'
+
+
+# 
+#find  /tmp/ -maxdepth 1 -type d | grep $tmp  | grep pdf | grep -v stamp | awk '{print $1,$1,$1}' | teip -f 2 -- bash -c 'sed "s;/.*;;"' | teip -f 3 -- bash -c 'sed -r "s;.*[^-]-([0-9]*).pdf;\1;"' | sort -s -k2,2 -k1,1n | awk '{print $1}' > $tmp-4
+
+cat $tmp-3 | awk '{print $1,$1,$1}' | teip -f 2 -- bash -c 'sed "s;/tmp/;;" | sed "s;/.*;;"' | teip -f 3 -- bash -c 'sed "s;.*/;;" | sed -r "s;[^-].*(-)(.*).pdf;\2;"' | sort -s -k2,2 -k3,3n > $tmp-4
+
+## MAKE output 
+
+[ $# == 1 ]  && out="$1" || out="out"
+
+cat $tmp-4| awk '{print $1}' | sed "s;$;_stamped_all.pdf 1-z;" | xargs | xargs -I@ bash -c 'qpdf --empty --pages @ -- "'$out'"_stamped-all.pdf'
+cat $tmp-4| awk '{print $1}' | sed "s;$;_stamped_pages.pdf 1-z;" | xargs | xargs -I@ bash -c 'qpdf --empty --pages @ -- "'$out'"_stamped-pages.pdf'
+cat $tmp-4| awk '{print $1}' | sed "s;$;_stamped_only-page.pdf 1-z;" | xargs | xargs -I@ bash -c 'qpdf --empty --pages @ -- "'$out'"_stamped-only-page.pdf'
+}
+
+pypdfpagein
+
+fi

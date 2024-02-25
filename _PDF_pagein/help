@@ -1,0 +1,14 @@
+
+Comnbine pdf files and add page numbers
+
+Usage: Pypdf_pagein [ output file name ]
+
+if no argument is specified , [out ...]
+
+Plese put a file called list in the current directory.
+Please write the pdf file names you want to combine in list
+
+Example:
+ Pypdf_pagein out
+
+
